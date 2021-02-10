@@ -1,0 +1,1 @@
+This is the configuration file for the conainerised version of Nginx. Specifically designed for the internal Movim.

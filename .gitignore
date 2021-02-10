@@ -1,0 +1,16 @@
+.env
+docker-compose.config.yml
+docker-compose.override.yml
+prosody/etc/certs/*
+*.bak
+ejabberd.yml
+nginx.conf
+create_realm.json
+create_ldap.json
+*.cfg.lua
+*roster.txt
+__pycache__
+.vscode
+ldap-roster.py
+.tmp
+nginx/deploy/10-prosody-certs

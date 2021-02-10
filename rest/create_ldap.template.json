@@ -1,0 +1,113 @@
+{
+    "name": "ldap",
+    "providerId": "ldap",
+    "providerType": "org.keycloak.storage.UserStorageProvider",
+    "parentId": "{{ env['HOST'] }}",
+    "config": {
+        "enabled": [
+            "true"
+        ],
+        "priority": [
+            "0"
+        ],
+        "fullSyncPeriod": [
+            "-1"
+        ],
+        "changedSyncPeriod": [
+            "-1"
+        ],
+        "cachePolicy": [
+            "DEFAULT"
+        ],
+        "evictionDay": [],
+        "evictionHour": [],
+        "evictionMinute": [],
+        "maxLifespan": [],
+        "batchSizeForSync": [
+            "1000"
+        ],
+        "editMode": [
+            "WRITABLE"
+        ],
+        "importEnabled": [
+            "true"
+        ],
+        "syncRegistrations": [
+            "false"
+        ],
+        "vendor": [
+            "other"
+        ],
+        "usePasswordModifyExtendedOp": [],
+        "usernameLDAPAttribute": [
+            "uid"
+        ],
+        "rdnLDAPAttribute": [
+            "uid"
+        ],
+        "uuidLDAPAttribute": [
+            "entryUUID"
+        ],
+        "userObjectClasses": [
+            "inetOrgPerson, organizationalPerson"
+        ],
+        "connectionUrl": [
+            "ldap://{{ env['LDAP_SERVER'] or 'slapd' }}"
+        ],
+        "usersDn": [
+            "ou=People,{{ env['LDAP_BASE_DN'] }}"
+        ],
+        "authType": [
+            "simple"
+        ],
+        "startTls": [],
+        "bindDn": [
+            "cn=admin,{{ env['LDAP_BASE_DN'] }}"
+        ],
+        "bindCredential": [
+            "{{ env['LDAP_ADMIN_PASSWORD']  }}"
+        ],
+        "customUserSearchFilter": [
+            "(objectClass=person)"
+        ],
+        "searchScope": [
+            "2"
+        ],
+        "validatePasswordPolicy": [
+            "false"
+        ],
+        "trustEmail": [
+            "false"
+        ],
+        "useTruststoreSpi": [
+            "ldapsOnly"
+        ],
+        "connectionPooling": [
+            "true"
+        ],
+        "connectionPoolingAuthentication": [],
+        "connectionPoolingDebug": [],
+        "connectionPoolingInitSize": [],
+        "connectionPoolingMaxSize": [],
+        "connectionPoolingPrefSize": [],
+        "connectionPoolingProtocol": [],
+        "connectionPoolingTimeout": [],
+        "connectionTimeout": [],
+        "readTimeout": [],
+        "pagination": [
+            "true"
+        ],
+        "allowKerberosAuthentication": [
+            "false"
+        ],
+        "serverPrincipal": [],
+        "keyTab": [],
+        "kerberosRealm": [],
+        "debug": [
+            "false"
+        ],
+        "useKerberosForPasswordAuthentication": [
+            "false"
+        ]
+    }
+}

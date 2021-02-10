@@ -1,0 +1,20 @@
+#!/bin/bash
+
+PROGNAME=$(basename $0)
+RELEASE="Revision 1.0.0"
+AUTHOR="(c) 2020 Paul Bargewell (paul.bargewell@opusvl.com)"
+LICENSE="SPDX-License-Identifier: AGPL-3.0-or-later"
+
+if [[ ! -f ".env" ]]; then
+  echo "ERROR: You need to create a .env file first (see .env.example)."
+  exit 1
+fi
+
+source .env
+
+sudo certbot certonly -d ${HOST}.${DOMAIN} -d conference.${HOST}.${DOMAIN} -d proxy.${HOST}.${DOMAIN} -d pubsub.${HOST}.${DOMAIN} -d upload.${HOST}.${DOMAIN} -d vjud.${HOST}.${DOMAIN} -d xmpp.${HOST}.${DOMAIN} -d chat.${HOST}.${DOMAIN}
+
+sudo certbot certonly -d sso.${HOST}.${DOMAIN}
+
+sudo certbot certonly -d movim.${HOST}.${DOMAIN}
+

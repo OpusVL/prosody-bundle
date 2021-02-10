@@ -1,0 +1,31 @@
+#!/bin/sh
+
+# certbot certificate paths
+
+CERTBOT=`which certbot`
+CERTPATH=
+
+if [ -z "${CERTBOT}" ]; then
+  echo "CERTBOT: certbot executable not found. Try installing it with 'apt-get install certbot'."
+  exit 1
+else
+  CERTPATH=$(sudo ${CERTBOT} certificates -d {{ env['HOST']}}.{{ env['DOMAIN'] }}  | \
+    grep 'Certificate Path:' | sed -e 's/Certificate Path: //gi' | \
+    sed -e 's/fullchain.pem//gi')
+  echo ${CERTPATH}
+  export CERTPATH
+  if [ -z "${CERTPATH}" ]; then
+    echo "CERTBOT: Unable to find certificates for {{ env['HOST']}}.{{ env['DOMAIN'] }}"
+    exit 1
+  fi
+fi
+
+mkdir -p {{ env['PWD']}}/prosody/etc/certs/{{ env['HOST']}}.{{ env['DOMAIN'] }}
+cp -rL ${CERTPATH}{fullchain.pem,privkey.pem} {{ env['PWD']}}/prosody/etc/certs/{{ env['HOST']}}.{{ env['DOMAIN'] }}
+
+OWNER=$(stat -c %u {{ env['CONTAINER_VOLUME'] }}/{{ env['SERIAL'] }}/run/prosody.pid)
+
+chown ${OWNER} {{ env['PWD']}}/prosody/etc/certs/{{ env['HOST']}}.{{ env['DOMAIN'] }} -R
+
+cd {{ env['PWD'] }}
+docker-compose exec prosody supervisorctl restart prosody

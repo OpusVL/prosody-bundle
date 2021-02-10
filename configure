@@ -1,0 +1,52 @@
+#!/bin/bash
+
+PROGNAME=$(basename $0)
+RELEASE="Revision 1.0.4"
+AUTHOR="(c) 2020 Paul Bargewell (paul.bargewell@opusvl.com)"
+LICENSE="SPDX-License-Identifier: AGPL-3.0-or-later"
+
+if [[ ! -f ".env" ]]; then
+  echo "ERROR: You need to create a .env file first (see .env.example)."
+  exit 1
+fi
+
+source .env
+
+readonly PYTHON_JINJA2="import os;
+import sys;
+import jinja2;
+from dotenv import load_dotenv;
+load_dotenv(verbose=True)
+sys.stdout.write(
+    jinja2.Template
+        (sys.stdin.read()
+    ).render(env=os.environ))"
+
+function render() {
+  if [[ -f "$1" ]]; then
+    echo "Templating: $1"
+    cat "$1" | python -c "${PYTHON_JINJA2}" > `echo "$1" | sed 's/\.template//gi'`
+  else
+    echo "$1 File not found."
+    exit 1
+  fi
+}
+
+# Render the templates first
+
+for t in prosody/etc/conf.d/modules.cfg.template.lua prosody/etc/ldap-roster.template.py prosody/etc/prosody.cfg.template.lua prosody/etc/conf.d/extra.cfg.template.lua prosody/etc/conf.d/logging.cfg.template.lua prosody/etc/vhost.d/vhost.cfg.template.lua rest/create_realm.template.json rest/create_ldap.template.json nginx/nginx.template.conf nginx/deploy/10-prosody-certs.template
+do
+  render $t
+done
+
+# Deliver template to Nginx
+
+sudo cp nginx/deploy/{10-prosody-certs,20-reload-nginx} /etc/letsencrypt/renewal-hooks/deploy/
+
+sudo cp ./nginx/nginx.conf /etc/nginx/conf.d/${SERIAL}.conf && \
+  sudo nginx -t && sudo systemctl reload nginx
+
+if [[ $? -ne 0 ]]; then
+  echo "NGINX: Failure to reload."
+  exit 1
+fi

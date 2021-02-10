@@ -1,0 +1,160 @@
+version: '3.2'
+
+services:
+  prosody:
+    # image: ${PROSODY_IMAGE:-prosody/prosody}:${PROSODY_IMAGE_VERSION:-latest}
+    build: build/prosody
+    hostname: ${HOST?REQUIRED}
+    environment:
+      PROSODY_USERID: 1000
+      PROSODY_DB_USERNAME: ${PROSODY_DB_USERNAME:-prosody}
+      PROSODY_DB_PASSWORD: ${PROSODY_DB_PASSWORD?REQUIRED}
+      PROSODY_DEFAULT_STORAGE: ${PROSODY_DEFAULT_STORAGE:-sql}
+      PROSODY_EXTRA_CFG: ${PROSODY_EXTRA_CFG:-1}
+      PROSODY_LOG_LEVEL: ${PROSODY_LOG_LEVEL:-info}
+      PROSODY_MODULES_AVAILABLE: ${PROSODY_MODULES_AVAILABLE}
+      PROSODY_MODULES_DISABLED: ${PROSODY_MODULES_DISABLED}
+      PROSODY_MODULES_ENABLED: ${PROSODY_MODULES_ENABLED?REQUIRED}
+      PROSODY_NETWORK_BACKEND: ${PROSODY_NETWORK_BACKEND:-epoll}
+    ports:
+    - ${IP:-0.0.0.0}:5000:5000/tcp
+    - ${IP:-0.0.0.0}:5222:5222/tcp
+    - ${IP:-0.0.0.0}:5269:5269/tcp
+    - ${IP:-0.0.0.0}:5280:5280/tcp
+    restart: unless-stopped
+    volumes:
+    - "${PWD}/prosody/etc:/etc/prosody"
+    - "${PWD}/prosody/cron.hourly:/etc/cron.hourly"
+    - "${PWD}/supervisor/conf.d:/etc/supervisor/conf.d"
+    - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL?REQUIRED}/logs/:/var/log/prosody"
+    - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL?REQUIRED}/prosody:/var/lib/prosody:rw"
+    - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL?REQUIRED}/run:/var/run/prosody:rw"
+    depends_on:
+    - slapd
+    # healthcheck:
+    #   test: [ "CMD", "curl", "--silent", "--fail", "http://localhost:5222" ]
+    #   # test: [ "CMD", "echo", "quit", "|", "openssl", "s_client", "-starttls", "xmpp", "-connect", "localhost:5222" ]
+    #   # test: [ "CMD", "curl", "--silent", "--fail", "http://localhost:5222", "|", "grep xml" ]
+    #   # test: [ "CMD", "[[ `curl --silent --fail localhost:5222` =~ \"xml version\" ]]" ]
+    #   interval: 1m
+    #   timeout: 10s
+    #   retries: 5
+
+  slapd:
+    image: ${OPENLDAP_IMAGE:-osixia/openldap-backup}:${OPENLDAP_IMAGE_VERSION:-latest}
+    environment:
+      LDAP_ADMIN_PASSWORD: ${LDAP_ADMIN_PASSWORD?REQUIRED}
+      LDAP_BASE_DN: ${LDAP_BASE_DN?REQUIRED}
+      LDAP_CONFIG_PASSWORD: ${LDAP_CONFIG_PASSWORD?REQUIRED}
+      LDAP_DOMAIN: ${LDAP_DOMAIN?REQUIRED}
+      LDAP_ORGANISATION: ${LDAP_ORGANISATION?REQUIRED}
+      LDAP_READONLY_USER: ${LDAP_READONLY_USER:-true}
+      LDAP_READONLY_USER_PASSWORD: ${LDAP_READONLY_USER_PASSWORD}
+      LDAP_RFC2307BIS_SCHEMA: ${LDAP_RFC2307BIS_SCHEMA:-true}
+      LDAP_TLS: ${LDAP_TLS:-true}
+      LDAP_TLS_VERIFY_CLIENT: ${LDAP_TLS_VERIFY_CLIENT:-true}
+    volumes:
+      - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL}/openldap/var/lib/ldap/:/var/lib/ldap"
+      - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL}/openldap/etc/ldap/slapd.d/:/etc/ldap/slapd.d"
+      - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL}/openldap/certs/:/container/service/slapd/assets/certs"
+      - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL}/openldap/backup/:/data/backup"
+    ports:
+      - "389:389"
+      # - "636:636"    
+    healthcheck:
+      test: [ "CMD", "ldapsearch", "-H", "ldapi://", "-Q", "-Y", "EXTERNAL", "-b", "cn=config", "-D", "cn=config", "-s", "base", "-LLL", "olcLoglevel" ]
+      interval: 1m
+      timeout: 10s
+      retries: 5
+
+  keycloak:
+    image: ${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak}:${KEYCLOAK_IMAGE_VERSION:-latest}
+    environment:
+      KEYCLOAK_USER: ${KEYCLOAK_USER:-admin}
+      KEYCLOAK_PASSWORD: ${KEYCLOAK_PASSWORD?REQUIRED}
+      DB_ADDR: db
+      DB_VENDOR: postgres
+      DB_DATABASE: ${KEYCLOAK_DATABASE:-keycloak}
+      DB_USER: ${KEYCLOAK_POSTGRES_USER:-keycloak}
+      DB_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD?REQUIRED}
+      PROXY_ADDRESS_FORWARDING: ${PROXY_ADDRESS_FORWARDING:-true}
+      JAVA_OPTS_APPEND: ${JAVA_OPTS_APPEND}
+      ROOT_LOGLEVEL: ${KEYCLOAK_LOGLEVEL:-INFO}
+      KEYCLOAK_LOGLEVEL: ${KEYCLOAK_LOGLEVEL:-INFO}
+    ports:
+      - "${PORTBASE?REQUIRED}80:8080"
+    volumes:
+      - "${PWD}/whales:/opt/jboss/keycloak/themes/whales:rw"
+    depends_on: 
+    - slapd
+    - db
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost:8080" ]
+      interval: 1m
+      timeout: 10s
+      retries: 5
+
+  db:
+    image: ${POSTGRES_IMAGE:-postgres}:${POSTGRES_IMAGE_VERSION:-12}
+    environment:
+      POSTGRES_DB:  "${POSTGRES_DB:-postgres}"
+      POSTGRES_USER: "${POSTGRES_USER:-postgres}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD?REQUIRED}"
+      KEYCLOAK_DATABASE: ${KEYCLOAK_DATABASE:-keycloak}
+      KEYCLOAK_POSTGRES_USER: ${KEYCLOAK_POSTGRES_USER:-keycloak}
+      KEYCLOAK_POSTGRES_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD?REQUIRED}
+      PROSODY_DATABASE: ${PROSODY_DATABASE:-prosody}
+      PROSODY_POSTGRES_USER: ${PROSODY_POSTGRES_USER:-prosody}
+      PROSODY_POSTGRES_PASSWORD: ${PROSODY_DB_PASSWORD?REQUIRED}  
+      MOVIM_DATABASE: ${MOVIM_DATABASE:-movim}
+      MOVIM_POSTGRES_USER: ${MOVIM_POSTGRES_USER:-movim}
+      MOVIM_POSTGRES_PASSWORD: ${MOVIM_POSTGRES_PASSWORD?REQUIRED}     
+    volumes:
+      - "${PWD}/init-db.sh:/docker-entrypoint-initdb.d/init-db.sh"
+      - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL?REQUIRED}/postgres:/var/lib/postgresql/data"
+    ports:
+      - "${PORTBASE?REQUIRED}32:5432"
+    restart: always      
+    healthcheck:
+      test: [ "CMD", "psql", "-U", "postgres", "-d", "keycloak", "-c", "select version();" ]
+      interval: 1m
+      timeout: 10s
+      retries: 5
+
+  movim:
+    image: ${MOVIM_IMAGE:-movim/movim}:${MOVIM_IMAGE_VERSION:-0.19rc1}
+    environment:
+      MOVIM_ADMIN: ${MOVIM_ADMIN:-admin}
+      MOVIM_PASSWORD: ${MOVIM_PASSWORD?REQUIRED}
+      MOVIM_DOMAIN: ${MOVIM_DOMAIN:-http://localhost}
+      MOVIM_PORT: 8080
+      MOVIM_INTERFACE: 0.0.0.0
+      POSTGRES_DB: ${MOVIM_DATABASE:-movim}
+      POSTGRES_HOST: db
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: ${MOVIM_POSTGRES_USER:-movim}
+      POSTGRES_PASSWORD: ${MOVIM_POSTGRES_PASSWORD?REQUIRED}
+    volumes:
+    - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL?REQUIRED}/movim:/var/www/html:rw"
+    depends_on: 
+      - db
+    healthcheck:
+      test: [ "CMD", "curl", "--silent", "--fail", "http://localhost:8080/?login" ]
+      interval: 1m
+      timeout: 10s
+      retries: 5
+
+  nginx:
+    image: nginx:mainline-alpine
+    ports:
+    - "${PORTBASE?REQUIRED}81:80"
+    volumes:
+    - "${CONTAINER_VOLUME?REQUIRED}/${SERIAL?REQUIRED}/movim:/var/www/html:rw"
+    - "${PWD}/movim/nginx:/etc/nginx/conf.d:ro"
+    depends_on: 
+      - movim
+    healthcheck:
+      test: [ "CMD", "curl", "--fail", "http://localhost/?login" ]
+      interval: 1m
+      timeout: 10s
+      retries: 5      

@@ -1,0 +1,105 @@
+#!/bin/bash
+
+PROGNAME=$(basename $0)
+RELEASE="Revision 1.0.5"
+AUTHOR="(c) 2020 Paul Bargewell (paul.bargewell@opusvl.com)"
+LICENSE="SPDX-License-Identifier: AGPL-3.0-or-later"
+
+source ./configure
+
+# This will bring up keycloak, slapd and db
+
+docker-compose up -d keycloak
+
+# Use the Keycloak API to create the realm and LDAP component
+
+echo "Configuring KEYCLOAK"
+
+# Wait until the keycloak instance is responding
+n=0 # 6 retries every 10s
+until [ "$n" -ge 6 ]; do
+  curl --fail --silent -o /dev/null http://127.0.0.1:${PORTBASE}80/auth/realms/master/.well-known/openid-configuration && break
+  if [[ $? -ne 0 ]]; then
+    echo "KEYCLOAK: Retrying in 10 seconds."
+    n=$((n+1))
+    sleep 10
+  fi
+done
+
+TOKEN=$(curl --request POST \
+  --url http://127.0.0.1:${PORTBASE}80/auth/realms/master/protocol/openid-connect/token \
+  --header 'content-type: application/x-www-form-urlencoded' \
+  --data grant_type=password \
+  --data client_id=admin-cli \
+  --data username=admin \
+  --data password=${KEYCLOAK_PASSWORD} \
+  --silent --fail | jq -r '.access_token')
+
+if [[ $? -ne 0 ]] || [[ -z "${TOKEN}" ]]; then
+    echo "KEYCLOAK: Authentication Failed."
+    exit 1
+else
+    echo "KEYCLOAK: Authentication Success."
+fi
+
+curl --request POST \
+  --url http://127.0.0.1:${PORTBASE}80/auth/admin/realms \
+  --header "authorization: bearer ${TOKEN}" \
+  --header 'content-type: application/json' \
+  --silent --fail \
+  --data @rest/create_realm.json
+
+if [[ $? -ne 0 ]]; then
+    echo "KEYCLOAK: Unable to create REALM (Does it already exist?)."
+    exit 1
+else
+    echo "KEYCLOAK: REALM ${HOST} created."
+fi
+
+curl --request POST \
+  --url http://127.0.0.1:${PORTBASE}80/auth/admin/realms/${HOST}/components \
+  --header "authorization: bearer ${TOKEN}" \
+  --header 'content-type: application/json' \
+  --silent --fail \
+  --data @rest/create_ldap.json 
+
+if [[ $? -ne 0 ]]; then
+    echo "KEYCLOAK: Unable to create LDAP component."
+    exit 1
+else
+    echo "KEYCLOAK: LDAP component created."
+fi
+
+# To get this far implies keycloak is running which means the database is ready.
+
+sudo mkdir -p ${CONTAINER_VOLUME}/${SERIAL}/{prosody,logs}
+sudo chmod g+rw,o+rw ${CONTAINER_VOLUME}/${SERIAL}/{prosody,logs} -R
+sudo chown 1000 ${CONTAINER_VOLUME}/${SERIAL}/{prosody,logs} -R
+sudo chgrp 1000 ${CONTAINER_VOLUME}/${SERIAL}/{prosody,logs} -R
+
+# Start all the other containers
+echo "Starting All Containers."
+docker-compose up -d
+# Resolve the Movim permission error by starting movim again
+echo "Taking a breath... back in 10s"
+sleep 10
+docker-compose up -d movim
+
+echo "Configuring MOVIM"
+
+# Wait until the keycloak instance is responding
+n=0 # 6 retries every 10s
+until [ "$n" -ge 6 ]; do
+  curl --fail --silent -o /dev/null http://127.0.0.1:${PORTBASE}81/?login && break
+  if [[ $? -ne 0 ]]; then
+    echo "MOVIM: Retrying in 10 seconds."
+    docker-compose up -d movim
+    n=$((n+1))
+    sleep 10
+  fi
+done
+
+echo "update configuration set xmppdomain='${HOST}.${DOMAIN}', xmppdescription='${LDAP_ORGANISATION}', chatonly=true where username='admin';" | \
+  docker-compose exec -T db psql -U movim -d movim
+
+echo "Done."

@@ -1,0 +1,5 @@
+#!/bin/bash
+
+python3 /etc/prosody/ldap-roster.py
+
+/usr/bin/supervisorctl restart prosody

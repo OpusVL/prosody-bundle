@@ -1,16 +1,24 @@
 #!/bin/bash
 
-PROGNAME=$(basename $0)
-RELEASE="Revision 1.0.4"
-AUTHOR="(c) 2020 Paul Bargewell (paul.bargewell@opusvl.com)"
-LICENSE="SPDX-License-Identifier: AGPL-3.0-or-later"
+# PROGNAME=$(basename $0)
+# RELEASE="Revision 1.0.5"
+# AUTHOR="Paul Bargewell <paul.bargewell@opusvl.com>"
+# COPYTRIGHT="Copyright 2021, Opus Vision Limited T/A OpusVL"
+# LICENSE="SPDX-License-Identifier: AGPL-3.0-or-later"
+
+source .env
 
 if [[ ! -f ".env" ]]; then
   echo "ERROR: You need to create a .env file first (see .env.example)."
   exit 1
 fi
 
-source .env
+SUDO=$(which sudo)
+
+if [[ -z "${SUDO}" ]]; then
+  echo "We need to elevate privileges using 'sudo' which can't be found."
+  exit 1
+fi
 
 readonly PYTHON_JINJA2="import os;
 import sys;
@@ -25,7 +33,8 @@ sys.stdout.write(
 function render() {
   if [[ -f "$1" ]]; then
     echo "Templating: $1"
-    cat "$1" | python -c "${PYTHON_JINJA2}" > `echo "$1" | sed 's/\.template//gi'`
+    # cat "$1" | python -c "${PYTHON_JINJA2}" > "${1//\.template/}"
+    < "$1" python -c "${PYTHON_JINJA2}" > "${1//\.template/}"
   else
     echo "$1 File not found."
     exit 1
@@ -34,19 +43,33 @@ function render() {
 
 # Render the templates first
 
-for t in prosody/etc/conf.d/modules.cfg.template.lua prosody/etc/ldap-roster.template.py prosody/etc/prosody.cfg.template.lua prosody/etc/conf.d/extra.cfg.template.lua prosody/etc/conf.d/logging.cfg.template.lua prosody/etc/vhost.d/vhost.cfg.template.lua rest/create_realm.template.json rest/create_ldap.template.json nginx/nginx.template.conf nginx/deploy/10-prosody-certs.template
+TEMPLATES=(prosody/etc/conf.d/modules.cfg.template.lua 
+  prosody/etc/ldap-roster.template.py 
+  prosody/etc/prosody.cfg.template.lua 
+  prosody/etc/conf.d/extra.cfg.template.lua 
+  prosody/etc/conf.d/logging.cfg.template.lua 
+  prosody/etc/vhost.d/vhost.cfg.template.lua 
+  rest/create_realm.template.json 
+  rest/create_ldap.template.json 
+  nginx/nginx.template.conf 
+  nginx/deploy/10-prosody-certs.template
+)
+
+for TEMPLATE in "${TEMPLATES[@]}"
 do
-  render $t
+  render "$TEMPLATE"
 done
 
 # Deliver template to Nginx
 
-sudo cp nginx/deploy/{10-prosody-certs,20-reload-nginx} /etc/letsencrypt/renewal-hooks/deploy/
+${SUDO} cp nginx/deploy/{10-prosody-certs,20-reload-nginx} /etc/letsencrypt/renewal-hooks/deploy/
 
-sudo cp ./nginx/nginx.conf /etc/nginx/conf.d/${SERIAL}.conf && \
-  sudo nginx -t && sudo systemctl reload nginx
+${SUDO} cp ./nginx/nginx.conf "/etc/nginx/conf.d/${SERIAL}.conf"
 
-if [[ $? -ne 0 ]]; then
+TEST=(nginx -t)
+RELOAD=(systemctl reload nginx)
+  
+if [[ $(${SUDO} "${TEST[@]}") -ne 0 ]] && [[ $(${SUDO} "${RELOAD[@]}") -ne 0 ]]; then
   echo "NGINX: Failure to reload."
   exit 1
 fi

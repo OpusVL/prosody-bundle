@@ -1,9 +1,10 @@
 #!/bin/bash
 
-PROGNAME=$(basename $0)
-RELEASE="Revision 1.0.0"
-AUTHOR="(c) 2020 Paul Bargewell (paul.bargewell@opusvl.com)"
-LICENSE="SPDX-License-Identifier: AGPL-3.0-or-later"
+# PROGNAME=$(basename $0)
+# RELEASE="Revision 1.0"
+# AUTHOR="Paul Bargewell <paul.bargewell@opusvl.com>"
+# COPYTRIGHT="Copyright 2021, Opus Vision Limited T/A OpusVL"
+# LICENSE="SPDX-License-Identifier: AGPL-3.0-or-later"
 
 set -e
 

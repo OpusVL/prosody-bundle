@@ -24,6 +24,8 @@ readonly PYTHON_JINJA2="import os;
 import sys;
 import jinja2;
 from dotenv import load_dotenv;
+reload(sys)
+sys.setdefaultencoding('utf-8')
 load_dotenv(verbose=True)
 sys.stdout.write(
     jinja2.Template

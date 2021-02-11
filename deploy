@@ -32,7 +32,8 @@ until [ "$n" -ge 6 ]; do
         -o /dev/null
         "http://127.0.0.1:${PORTBASE}80/auth/realms/master/.well-known/openid-configuration"
     )
-    if [[ $(${CURL} "${ARGS[@]}") -ne 0 ]]; then
+    ${CURL} "${ARGS[@]}" && break
+    if [[ $? -ne 0 ]]; then
         echo "KEYCLOAK: Retrying in 10 seconds."
         n=$((n+1))
         sleep 10
@@ -51,16 +52,12 @@ ARGS=(--request POST
     --silent --fail
 )
 
-if [[ $(TOKEN=${CURL} "${ARGS[@]}" | jq -r ".access_token") -ne 0 ]]; then
-    echo "KEYCLOAK: Authentication Failed."
+TOKEN=$(${CURL} "${ARGS[@]}" | jq -r ".access_token")
+if  [[ -z "${TOKEN}" ]]; then
+    echo "KEYCLOAK: Authentication failure or invalid token returned."
     exit 1
-else
-    if  [[ -z "${TOKEN}" ]]; then
-        echo "KEYCLOAK: Invalid token returned."
-        exit 1
-    fi
-    echo "KEYCLOAK: Authentication Success."
 fi
+echo "KEYCLOAK: Authentication Success."
 
 ARGS=(--request POST
     --url "http://127.0.0.1:${PORTBASE}80/auth/admin/realms"
@@ -85,7 +82,7 @@ ARGS=(--request POST
     --data @rest/create_ldap.json
 )
 
-if [[ $(${CURL} "${ARGS[@]}") -ne 0 ]]; then
+if [[ $(${CURL} "${ARGS[@]}") ]]; then
     echo "KEYCLOAK: Unable to create LDAP component."
     exit 1
 else
@@ -117,7 +114,8 @@ until [ "$n" -ge 6 ]; do
         -o /dev/null 
         "http://127.0.0.1:${PORTBASE}81/?login"
     )
-    if [[ $(${CURL} "${ARGS[@]}") -ne 0 ]]; then
+    ${CURL} "${ARGS[@]}" && break
+    if [[ $? -ne 0 ]]; then
         echo "MOVIM: Retrying in 10 seconds."
         ${DOCKER_COMPOSE} up -d movim
         n=$((n+1))
